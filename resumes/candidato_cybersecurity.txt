@@ -1,0 +1,16 @@
+### Dati personali
+Nome completo: Marco Verdi
+Email: marco.verdi@example.com
+Telefono: 3339876543
+
+### Profilo professionale
+Marco Verdi è un cybersecurity analyst specializzato nella sicurezza applicativa, nel vulnerability assessment e nella protezione di siti web e applicazioni aziendali.
+
+### Competenze
+Cyber Security, OWASP Top 10, penetration testing, secure coding, hardening, vulnerability assessment, API Security, DevSecOps, logging, security headers.
+
+### Certificazioni
+Marco possiede una certificazione CEH e ha esperienza nell'identificazione e mitigazione di vulnerabilità su applicazioni web.
+
+### Esperienza
+Ha supportato aziende nella messa in sicurezza di siti web, analizzando vulnerabilità, configurazioni deboli e rischi legati ad autenticazione, input utente e API.

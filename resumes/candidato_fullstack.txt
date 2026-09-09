@@ -1,0 +1,16 @@
+### Dati personali
+Nome completo: Giovanni Rossi
+Email: giovanni.rossi@example.com
+Telefono: 3334567890
+
+### Profilo professionale
+Giovanni Rossi è uno sviluppatore full stack con esperienza nello sviluppo di applicazioni web, backend, database e interfacce frontend.
+
+### Competenze
+HTML, CSS, JavaScript, PHP, Laravel, MySQL, API REST, MVC, CRUD, Git, GitHub, validazione input, autenticazione, sicurezza applicativa base.
+
+### Esperienza
+Ha realizzato applicazioni web con Laravel e MySQL, gestendo rotte, controller, model, migration, relazioni database e funzionalità CRUD complete.
+
+### Sicurezza applicativa
+Conosce le basi di CSRF mitigation, XSS mitigation, validazione server-side, rate limiting e protezione delle operazioni critiche.

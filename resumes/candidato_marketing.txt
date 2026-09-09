@@ -1,0 +1,13 @@
+### Dati personali
+Nome completo: Laura Bianchi
+Email: laura.bianchi@example.com
+Telefono: 3331234567
+
+### Profilo professionale
+Laura Bianchi è una marketing specialist con esperienza nella promozione di prodotti digitali, campagne social, content marketing e strategie di comunicazione online.
+
+### Competenze
+Social media marketing, copywriting, email marketing, analisi del target, advertising online, creazione contenuti, lancio prodotto, branding.
+
+### Esperienza
+Ha lavorato su campagne per startup e piccole aziende, aiutando i team a migliorare la visibilità dei prodotti e ad aumentare le conversioni attraverso strategie digitali mirate.

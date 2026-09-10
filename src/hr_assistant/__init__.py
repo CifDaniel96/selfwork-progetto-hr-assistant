@@ -1,69 +1,12 @@
-import os
-import uuid
-
 import chainlit as cl
-import chromadb
 import ollama
-from chromadb.utils import embedding_functions
-from dotenv import load_dotenv
+
+from hr_assistant.config import OLLAMA_MODEL
+from hr_assistant.database import create_collection
+from hr_assistant.utils import build_context, build_prompt, leggi_prime_100_righe
 
 
-load_dotenv()
-
-openai_key = os.getenv("OPENAI_API_KEY")
-
-if not openai_key:
-    raise ValueError("API key mancante. Controlla il file .env")
-
-documents_dir = "resumes"
-
-documents = []
-metadatas = []
-ids = []
-
-for filename in os.listdir(documents_dir):
-    if filename.endswith(".txt"):
-        file_path = os.path.join(documents_dir, filename)
-
-        with open(file_path, "r", encoding="utf-8") as file:
-            chunks = file.read().replace("\n", ".").split("### ")
-
-            for chunk in chunks:
-                if chunk.strip():
-                    documents.append(chunk)
-                    metadatas.append({"source": filename})
-                    ids.append(str(uuid.uuid4()))
-
-openai_ef = embedding_functions.OpenAIEmbeddingFunction(
-    api_key=openai_key,
-    model_name="text-embedding-3-small"
-)
-
-chroma_client = chromadb.Client()
-
-collection = chroma_client.get_or_create_collection(
-    name="CVs",
-    embedding_function=openai_ef
-)
-
-collection.add(
-    documents=documents,
-    metadatas=metadatas,
-    ids=ids
-)
-
-
-def leggi_prime_100_righe(file_path):
-    with open(file_path, "r", encoding="utf-8") as file:
-        righe = []
-
-        for index, riga in enumerate(file):
-            if index < 100:
-                righe.append(riga.strip())
-            else:
-                break
-
-    return righe
+collection = create_collection()
 
 
 @cl.on_chat_start
@@ -93,39 +36,35 @@ async def handle_message(message: cl.Message):
     )
 
     filename = results["metadatas"][0][0]["source"]
-    file_path = os.path.join(documents_dir, filename)
+    retrieved_chunk = results["documents"][0][0]
 
-    context_nome_candidato = leggi_prime_100_righe(file_path)
+    candidate_resume_rows = leggi_prime_100_righe(filename)
 
-    nome_response = ollama.chat(
-        model="llama3.2",
+    candidate_name_response = ollama.chat(
+        model=OLLAMA_MODEL,
         messages=[
             {
                 "role": "user",
                 "content": (
                     "Dato il seguente curriculum, individua il nome e cognome del candidato. "
                     "Rispondi solo con nome e cognome, senza spiegazioni.\n\n"
-                    f"{context_nome_candidato}"
+                    f"{candidate_resume_rows}"
                 ),
             }
         ],
     )
 
-    nome = nome_response["message"]["content"]
+    candidate_name = candidate_name_response["message"]["content"]
 
-    context = (
-        f"Nome file: {filename}\n"
-        f"Chunk più rilevante: {results['documents'][0][0]}"
+    context = build_context(
+        filename=filename,
+        retrieved_chunk=retrieved_chunk,
+        candidate_name=candidate_name
     )
 
-    prompt = (
-        f"Domanda utente: {user_question}\n\n"
-        f"Contesto recuperato dal RAG:\n{context}\n\n"
-        f"Nome candidato individuato: {nome}\n\n"
-        "Spiega che nel file individuato c'è il profilo più adatto. "
-        "Indica il nome del file e il nome del candidato. "
-        "Argomenta la scelta usando solo il contenuto del contesto. "
-        "Se non trovi corrispondenza, non inventare informazioni."
+    prompt = build_prompt(
+        user_question=user_question,
+        context=context
     )
 
     messages = cl.user_session.get("messages", [])
@@ -136,7 +75,7 @@ async def handle_message(message: cl.Message):
 
     try:
         stream = ollama.chat(
-            model="llama3.2",
+            model=OLLAMA_MODEL,
             messages=messages,
             stream=True
         )

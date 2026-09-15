@@ -2,11 +2,13 @@ import chainlit as cl
 import ollama
 
 from hr_assistant.config import OLLAMA_MODEL
-from hr_assistant.database import create_collection
+from hr_assistant.database import Database
+from hr_assistant.document_processor import sync_documents
 from hr_assistant.utils import build_context, build_prompt, leggi_prime_100_righe
 
 
-collection = create_collection()
+database = Database()
+sync_documents(database)
 
 
 @cl.on_chat_start
@@ -30,11 +32,10 @@ def on_chat_start():
 async def handle_message(message: cl.Message):
     user_question = message.content
 
-    results = collection.query(
-        query_texts=[user_question],
+    results = database.query(
+        user_question,
         n_results=1
     )
-
     filename = results["metadatas"][0][0]["source"]
     retrieved_chunk = results["documents"][0][0]
 

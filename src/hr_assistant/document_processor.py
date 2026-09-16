@@ -37,11 +37,16 @@ def sync_documents(database):
 
     tracked_filenames = set(tracked_files.keys())
 
-    # Rimuove dal database i file che non esistono più nella cartella resumes
+    added = 0
+    updated = 0
+    removed = 0
+
+    # Rimuove dal database i file che non esistono più
     removed_files = tracked_filenames - current_files
 
     for filename in removed_files:
         database.remove_document_by_source(filename)
+        removed += 1
 
     # Controlla file nuovi o modificati
     for filename in current_files:
@@ -56,9 +61,13 @@ def sync_documents(database):
         if tracked_file and tracked_file["hash"] == file_hash:
             continue
 
-        # File modificato: elimina prima i vecchi chunk
+        # File modificato
         if tracked_file:
             database.remove_document_by_source(filename)
+            updated += 1
+        else:
+            # File nuovo
+            added += 1
 
         chunks = load_document_chunks(file_path)
 
@@ -85,3 +94,5 @@ def sync_documents(database):
                 metadatas=metadatas,
                 ids=ids
             )
+
+    return added, updated, removed

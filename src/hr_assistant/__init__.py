@@ -36,10 +36,15 @@ async def show_db_stats(action: cl.Action):
 
 @cl.action_callback("db_reindex")
 async def reindex_database(action: cl.Action):
-    sync_documents(database)
+    added, updated, removed = sync_documents(database)
 
     await cl.Message(
-        content="Database reindicizzato con successo."
+        content=(
+            "Database reindicizzato con successo.\n\n"
+            f"Added: {added}\n"
+            f"Updated: {updated}\n"
+            f"Removed: {removed}"
+        )
     ).send()
 
 

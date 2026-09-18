@@ -20,7 +20,9 @@ def load_document_chunks(file_path):
     with open(file_path, "r", encoding="utf-8") as file:
         text = file.read()
 
-    return SemanticChunking.chunk_it(text)
+    semantic_chunker = SemanticChunking()
+
+    return semantic_chunker.chunk_text(text)
 
 def sync_documents(database):
     tracked_files = database.get_tracked_files()

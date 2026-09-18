@@ -8,118 +8,96 @@ from .config import EMBEDDING_MODEL, OPENAI_API_KEY
 
 
 class SemanticChunking:
-
-    @staticmethod
-    def calculate_cosine_distances(sentences):
-        distances = []
-
-        for i in range(len(sentences) - 1):
-            embedding_current = sentences[i]["combined_sentence_embedding"]
-            embedding_next = sentences[i + 1]["combined_sentence_embedding"]
-
-            similarity = cosine_similarity(
-                [embedding_current],
-                [embedding_next]
-            )[0][0]
-
-            distance = 1 - similarity
-
-            distances.append(distance)
-            sentences[i]["distance_to_next"] = distance
-
-        return distances, sentences
-
-    @staticmethod
-    def combine_sentences(sentences, buffer_size=1):
-        for i in range(len(sentences)):
-            combined_sentence = ""
-
-            for j in range(i - buffer_size, i):
-                if j >= 0:
-                    combined_sentence += sentences[j]["sentence"] + " "
-
-            combined_sentence += sentences[i]["sentence"]
-
-            for j in range(i + 1, i + 1 + buffer_size):
-                if j < len(sentences):
-                    combined_sentence += " " + sentences[j]["sentence"]
-
-            sentences[i]["combined_sentence"] = combined_sentence
-
-        return sentences
-
-    @staticmethod
-    def chunk_it(txt):
-        single_sentences_list = re.split(
-            r"(?<=[.?!])\s+",
-            txt
+    def __init__(self, breakpoint_percentile=95, buffer_size=1):
+        self.embeddings = OpenAIEmbeddings(
+            model=EMBEDDING_MODEL,
+            openai_api_key=OPENAI_API_KEY
         )
 
+        self.breakpoint_percentile = breakpoint_percentile
+        self.buffer_size = buffer_size
+
+    def _process_sentences(self, text):
         sentences = [
             {
                 "sentence": sentence,
                 "index": index
             }
-            for index, sentence in enumerate(single_sentences_list)
+            for index, sentence in enumerate(
+                re.split(r"(?<=[.?!])\s+", text)
+            )
         ]
 
-        sentences = SemanticChunking.combine_sentences(sentences)
+        for index, current in enumerate(sentences):
+            context_range = range(
+                max(0, index - self.buffer_size),
+                min(
+                    len(sentences),
+                    index + self.buffer_size + 1
+                )
+            )
 
-        embeddings_model = OpenAIEmbeddings(
-            model=EMBEDDING_MODEL,
-            openai_api_key=OPENAI_API_KEY
-        )
+            current["combined_sentence"] = " ".join(
+                sentences[position]["sentence"]
+                for position in context_range
+            )
 
-        embeddings = embeddings_model.embed_documents(
+        return sentences
+
+    def _calculate_distances(self, sentences):
+        embeddings = self.embeddings.embed_documents(
             [
                 sentence["combined_sentence"]
                 for sentence in sentences
             ]
         )
 
-        for index, sentence in enumerate(sentences):
-            sentence["combined_sentence_embedding"] = embeddings[index]
+        distances = []
 
-        distances, sentences = (
-            SemanticChunking.calculate_cosine_distances(sentences)
-        )
+        for index in range(len(sentences) - 1):
+            distance = 1 - cosine_similarity(
+                [embeddings[index]],
+                [embeddings[index + 1]]
+            )[0][0]
 
-        breakpoint_percentile_threshold = 95
+            distances.append(distance)
 
-        breakpoint_distance_threshold = np.percentile(
+        return distances
+
+    def chunk_text(self, text):
+        sentences = self._process_sentences(text)
+
+        print("SENTENCES:", sentences[:2])
+
+        distances = self._calculate_distances(sentences)
+
+        print("DISTANCES:", distances[:2])
+
+        threshold = np.percentile(
             distances,
-            breakpoint_percentile_threshold
+            self.breakpoint_percentile
         )
 
-        indices_above_threshold = [
+        split_points = [
             index
             for index, distance in enumerate(distances)
-            if distance > breakpoint_distance_threshold
+            if distance > threshold
         ]
 
-        start_index = 0
+        print("SPLIT POINTS:", split_points)
+
         chunks = []
+        start = 0
 
-        for index in indices_above_threshold:
-            end_index = index
-
-            group = sentences[start_index:end_index + 1]
-
-            combined_text = " ".join(
+        for point in split_points + [len(sentences) - 1]:
+            chunk = " ".join(
                 sentence["sentence"]
-                for sentence in group
+                for sentence in sentences[start:point + 1]
             )
 
-            chunks.append(combined_text)
+            print("CHUNK:", chunk)
 
-            start_index = index + 1
-
-        if start_index < len(sentences):
-            combined_text = " ".join(
-                sentence["sentence"]
-                for sentence in sentences[start_index:]
-            )
-
-            chunks.append(combined_text)
+            chunks.append(chunk)
+            start = point + 1
 
         return chunks

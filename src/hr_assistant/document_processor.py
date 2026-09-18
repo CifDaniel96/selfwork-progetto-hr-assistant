@@ -3,6 +3,7 @@ import os
 import uuid
 
 from .config import DOCUMENTS_DIR
+from .semantic_chunking import SemanticChunking
 
 
 def calculate_file_hash(file_path):
@@ -17,14 +18,9 @@ def calculate_file_hash(file_path):
 
 def load_document_chunks(file_path):
     with open(file_path, "r", encoding="utf-8") as file:
-        chunks = file.read().replace("\n", ".").split("### ")
+        text = file.read()
 
-    return [
-        chunk.strip()
-        for chunk in chunks
-        if chunk.strip()
-    ]
-
+    return SemanticChunking.chunk_it(text)
 
 def sync_documents(database):
     tracked_files = database.get_tracked_files()

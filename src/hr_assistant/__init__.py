@@ -1,12 +1,12 @@
 import chainlit as cl
-import ollama
 
-from hr_assistant.config import OLLAMA_MODEL
 from hr_assistant.database import Database
 from hr_assistant.document_processor import sync_documents
 from hr_assistant.utils import (
     build_prompt,
+    chat,
     classify_intent,
+    get_db_stats_response,
     leggi_prime_100_righe,
 )
 
@@ -19,22 +19,10 @@ sync_documents(database)
 async def show_db_stats(action: cl.Action):
     db_info = database.get_stats()
 
-    response = ollama.chat(
-        model=OLLAMA_MODEL,
-        messages=[
-            {
-                "role": "user",
-                "content": (
-                    "Descrivi in modo sintetico le statistiche del database "
-                    "dei frammenti indicizzati dal sistema.\n\n"
-                    f"{db_info}"
-                ),
-            }
-        ],
-    )
+    response = get_db_stats_response(db_info)
 
     await cl.Message(
-        content=response["message"]["content"]
+        content=response
     ).send()
 
 
@@ -180,8 +168,7 @@ async def handle_message(message: cl.Message):
             f"{candidate_info}\n\n"
             "Rispondi esclusivamente usando le informazioni presenti "
             "nel contesto del candidato. "
-            "Fornisci in modo diretto solo l'informazione richiesta "
-            "dall'utente. "
+            "Fornisci in modo diretto solo l'informazione richiesta. "
             "Non effettuare una nuova selezione del candidato e "
             "non inventare informazioni mancanti."
         )
@@ -203,16 +190,16 @@ async def handle_message(message: cl.Message):
     await response_message.send()
 
     try:
-        stream = ollama.chat(
-            model=OLLAMA_MODEL,
+        stream = chat(
             messages=messages,
             stream=True
         )
 
         for chunk in stream:
-            await response_message.stream_token(
-                chunk["message"]["content"]
-            )
+            token = chunk.choices[0].delta.content
+
+            if token:
+                await response_message.stream_token(token)
 
         messages.append(
             {

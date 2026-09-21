@@ -1,8 +1,20 @@
 import os
 
-import ollama
+from openai import OpenAI
 
-from .config import DOCUMENTS_DIR, OLLAMA_MODEL
+from .config import (
+    AI_API_URL,
+    DOCUMENTS_DIR,
+    LLM_MODEL,
+    LLM_MODEL_LOW,
+    OPENAI_API_KEY,
+)
+
+
+client = OpenAI(
+    base_url=AI_API_URL,
+    api_key=OPENAI_API_KEY,
+)
 
 
 def leggi_prime_100_righe(filename):
@@ -38,6 +50,7 @@ def build_prompt(user_question, context):
         "Se non trovi corrispondenza, non inventare informazioni."
     )
 
+
 def classify_intent(user_question):
     prompt = f"""
 Sei un classificatore di intenti per un assistente HR.
@@ -66,16 +79,10 @@ Esempi:
 "Cerco uno sviluppatore Laravel"
 → search_cv
 
-"Chi ha esperienza con Python?"
-→ search_cv
-
 "Qual è la sua email?"
 → info_cv
 
 "Che numero di telefono ha?"
-→ info_cv
-
-"Quali certificazioni possiede?"
 → info_cv
 
 "Dimmi di più su questo candidato"
@@ -90,20 +97,18 @@ oppure
 info_cv
 """
 
-    response = ollama.chat(
-        model=OLLAMA_MODEL,
+    response = client.chat.completions.create(
+        model=LLM_MODEL_LOW,
         messages=[
             {
                 "role": "user",
-                "content": prompt
+                "content": prompt,
             }
         ],
-        options={
-            "temperature": 0
-        }
+        temperature=0,
     )
 
-    result = response["message"]["content"].strip().lower()
+    result = response.choices[0].message.content.strip().lower()
 
     if "search_cv" in result:
         return "search_cv"
@@ -111,5 +116,32 @@ info_cv
     if "info_cv" in result:
         return "info_cv"
 
-    raise ValueError(f"Intent non riconosciuto: {result}")
+    raise ValueError(
+        f"Intent non riconosciuto: {result}"
+    )
 
+
+def chat(messages, stream=False):
+    return client.chat.completions.create(
+        model=LLM_MODEL,
+        messages=messages,
+        stream=stream,
+    )
+
+
+def get_db_stats_response(db_info):
+    response = client.chat.completions.create(
+        model=LLM_MODEL_LOW,
+        messages=[
+            {
+                "role": "user",
+                "content": (
+                    "Descrivi in modo sintetico le statistiche "
+                    "del database dei frammenti indicizzati dal sistema.\n\n"
+                    f"{db_info}"
+                ),
+            }
+        ],
+    )
+
+    return response.choices[0].message.content

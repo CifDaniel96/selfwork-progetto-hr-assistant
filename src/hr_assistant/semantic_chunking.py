@@ -5,30 +5,95 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 from .custom_embedding import CustomEmbeddingFunction
 
+
 class SemanticChunking:
-    def __init__(self, breakpoint_percentile=95, buffer_size=1):
+    def __init__(
+        self,
+        breakpoint_percentile=95,
+        buffer_size=1
+    ):
         self.embeddings = CustomEmbeddingFunction()
         self.breakpoint_percentile = breakpoint_percentile
         self.buffer_size = buffer_size
 
+    def _split_into_sentences(self, text):
+        # Primo tentativo: separazione tramite punteggiatura standard
+        sentences = re.split(
+            r"(?<=[.!?])\s+",
+            text.strip()
+        )
+
+        # Se otteniamo una sola frase molto lunga,
+        # proviamo con altri delimitatori comuni
+        if len(sentences) == 1 and len(text) > 100:
+            delimiters = r"([.!?\n;:])"
+            parts = re.split(
+                delimiters,
+                text.strip()
+            )
+
+            sentences = []
+
+            for index in range(
+                0,
+                len(parts) - 1,
+                2
+            ):
+                if parts[index].strip():
+                    sentences.append(
+                        parts[index].strip()
+                        + parts[index + 1]
+                    )
+
+            # Ultimo fallback: separazione tramite virgole
+            if len(sentences) == 1:
+                sentences = [
+                    sentence.strip() + ","
+                    for sentence in text.split(",")
+                    if sentence.strip()
+                ]
+
+                if sentences:
+                    sentences[-1] = (
+                        sentences[-1][:-1] + "."
+                    )
+
+        # Elimina eventuali frasi vuote
+        sentences = [
+            sentence
+            for sentence in sentences
+            if sentence.strip()
+        ]
+
+        if not sentences:
+            sentences = [text + "."]
+
+        return sentences
+
     def _process_sentences(self, text):
+        raw_sentences = self._split_into_sentences(
+            text
+        )
+
         sentences = [
             {
                 "sentence": sentence,
-                "index": index
+                "index": index,
             }
-            for index, sentence in enumerate(
-                re.split(r"(?<=[.?!])\s+", text)
-            )
+            for index, sentence
+            in enumerate(raw_sentences)
         ]
 
         for index, current in enumerate(sentences):
             context_range = range(
-                max(0, index - self.buffer_size),
+                max(
+                    0,
+                    index - self.buffer_size
+                ),
                 min(
                     len(sentences),
                     index + self.buffer_size + 1
-                )
+                ),
             )
 
             current["combined_sentence"] = " ".join(
@@ -48,7 +113,9 @@ class SemanticChunking:
 
         distances = []
 
-        for index in range(len(sentences) - 1):
+        for index in range(
+            len(sentences) - 1
+        ):
             distance = 1 - cosine_similarity(
                 [embeddings[index]],
                 [embeddings[index + 1]]
@@ -59,13 +126,21 @@ class SemanticChunking:
         return distances
 
     def chunk_text(self, text):
-        sentences = self._process_sentences(text)
+        sentences = self._process_sentences(
+            text
+        )
 
-        print("SENTENCES:", sentences[:2])
+        if not sentences:
+            return [text]
 
-        distances = self._calculate_distances(sentences)
+        if len(sentences) == 1:
+            return [
+                sentences[0]["sentence"]
+            ]
 
-        print("DISTANCES:", distances[:2])
+        distances = self._calculate_distances(
+            sentences
+        )
 
         threshold = np.percentile(
             distances,
@@ -74,22 +149,25 @@ class SemanticChunking:
 
         split_points = [
             index
-            for index, distance in enumerate(distances)
+            for index, distance
+            in enumerate(distances)
             if distance > threshold
         ]
-
-        print("SPLIT POINTS:", split_points)
 
         chunks = []
         start = 0
 
-        for point in split_points + [len(sentences) - 1]:
+        for point in (
+            split_points
+            + [len(sentences) - 1]
+        ):
             chunk = " ".join(
                 sentence["sentence"]
-                for sentence in sentences[start:point + 1]
+                for sentence
+                in sentences[
+                    start:point + 1
+                ]
             )
-
-            print("CHUNK:", chunk)
 
             chunks.append(chunk)
             start = point + 1

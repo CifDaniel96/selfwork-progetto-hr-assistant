@@ -166,6 +166,28 @@ def load_document_chunks(file_path):
     return semantic_chunker.chunk_text(content)
 
 
+def process_single_document(file_path):
+    chunks = load_document_chunks(file_path)
+
+    if not chunks:
+        return [], [], []
+
+    metadata = get_document_metadata(file_path)
+
+    documents = []
+    metadatas = []
+    ids = []
+
+    for chunk in chunks:
+        if not chunk.strip():
+            continue
+
+        documents.append(chunk)
+        metadatas.append(metadata)
+        ids.append(str(uuid.uuid4()))
+
+    return documents, metadatas, ids
+ 
 def sync_documents(database):
     tracked_files = database.get_tracked_files()
 

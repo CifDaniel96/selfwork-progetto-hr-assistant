@@ -56,6 +56,15 @@ class Database:
                 ids=result["ids"]
             )
 
+    def clear_database(self):
+        result = self.collection.get()
+        ids = result.get("ids", [])
+
+        if ids:
+            self.collection.delete(ids=ids)
+
+        return len(ids)
+
     def get_stats(self):
         result = self.collection.get()
 

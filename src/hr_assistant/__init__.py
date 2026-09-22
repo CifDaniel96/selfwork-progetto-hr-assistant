@@ -1,7 +1,15 @@
+import os
+import shutil
+
 import chainlit as cl
 
+from hr_assistant.config import DOCUMENTS_DIR
 from hr_assistant.database import Database
-from hr_assistant.document_processor import sync_documents
+from hr_assistant.document_processor import (
+    SUPPORTED_EXTENSIONS,
+    process_single_document,
+    sync_documents,
+)
 from hr_assistant.utils import (
     build_prompt,
     chat,
@@ -39,6 +47,19 @@ async def reindex_database(action: cl.Action):
         )
     ).send()
 
+@cl.action_callback("db_clear")
+async def clear_database(action: cl.Action):
+    removed_fragments = database.clear_database()
+
+    cl.user_session.set("last_cv_context", "")
+    cl.user_session.set("last_cv_header", "")
+
+    await cl.Message(
+        content=(
+            "Database azzerato con successo.\n\n"
+            f"Frammenti rimossi: {removed_fragments}"
+        )
+    ).send()
 
 @cl.on_chat_start
 async def on_chat_start():
@@ -55,8 +76,13 @@ async def on_chat_start():
             payload={"value": "db_reindex"},
             label="Reindex Database",
         ),
+        cl.Action(
+            name="db_clear",
+            icon="mouse-pointer-click",
+            payload={"value": "db_clear"},
+            label="Azzera Database",
+        ),
     ]
-
     await cl.Message(
         content="Informazioni del sistema:",
         actions=actions
@@ -80,9 +106,80 @@ async def on_chat_start():
     cl.user_session.set("last_cv_context", "")
     cl.user_session.set("last_cv_header", "")
 
+async def _process_and_index_file(file_path, file_name):
+    documents, metadatas, ids = process_single_document(file_path)
+
+    if not documents:
+        return f"Errore nel processare il file '{file_name}'."
+
+    
+    database.remove_document_by_source(file_name)
+
+    database.add_documents(
+        documents=documents,
+        metadatas=metadatas,
+        ids=ids,
+    )
+
+    return (
+        f"File '{file_name}' caricato "
+        "e indicizzato con successo."
+    )
+
+
+async def _file_upload(file):
+    file_name = os.path.basename(file.name)
+
+    extension = os.path.splitext(file_name)[1].lower()
+
+    if extension not in SUPPORTED_EXTENSIONS:
+        return (
+            f"Formato non supportato per "
+            f"'{file_name}'."
+        )
+
+    os.makedirs(
+        DOCUMENTS_DIR,
+        exist_ok=True
+    )
+
+    destination = os.path.join(
+        DOCUMENTS_DIR,
+        file_name
+    )
+
+    shutil.copy2(
+        file.path,
+        destination
+    )
+
+    return await _process_and_index_file(
+        destination,
+        file_name
+    )
 
 @cl.on_message
 async def handle_message(message: cl.Message):
+    if message.elements:
+        upload_results = []
+
+        for element in message.elements:
+            if (
+                not getattr(element, "name", None)
+                or not getattr(element, "path", None)
+            ):
+                continue
+
+            result = await _file_upload(element)
+            upload_results.append(result)
+
+        if upload_results:
+            await cl.Message(
+                content="\n".join(upload_results)
+            ).send()
+
+            return
+
     user_question = message.content
 
     try:

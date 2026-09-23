@@ -3,6 +3,7 @@
 __pycache__/
 *.pyc
 .files/
-.chainlit/
+.chainlit/*
+!.chainlit/config.toml
 data/
 modelli/

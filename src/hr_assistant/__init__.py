@@ -30,7 +30,8 @@ async def show_db_stats(action: cl.Action):
     response = get_db_stats_response(db_info)
 
     await cl.Message(
-        content=response
+        author="system_assistant",
+        content=response,
     ).send()
 
 
@@ -39,13 +40,15 @@ async def reindex_database(action: cl.Action):
     added, updated, removed = sync_documents(database)
 
     await cl.Message(
+        author="system_assistant",
         content=(
             "Database reindicizzato con successo.\n\n"
             f"Added: {added}\n"
             f"Updated: {updated}\n"
             f"Removed: {removed}"
-        )
+        ),
     ).send()
+
 
 @cl.action_callback("db_clear")
 async def clear_database(action: cl.Action):
@@ -55,11 +58,13 @@ async def clear_database(action: cl.Action):
     cl.user_session.set("last_cv_header", "")
 
     await cl.Message(
+        author="system_assistant",
         content=(
             "Database azzerato con successo.\n\n"
             f"Frammenti rimossi: {removed_fragments}"
-        )
+        ),
     ).send()
+
 
 @cl.on_chat_start
 async def on_chat_start():
@@ -83,9 +88,11 @@ async def on_chat_start():
             label="Azzera Database",
         ),
     ]
+
     await cl.Message(
+        author="system_assistant",
         content="Informazioni del sistema:",
-        actions=actions
+        actions=actions,
     ).send()
 
     cl.user_session.set(
@@ -106,13 +113,13 @@ async def on_chat_start():
     cl.user_session.set("last_cv_context", "")
     cl.user_session.set("last_cv_header", "")
 
+
 async def _process_and_index_file(file_path, file_name):
     documents, metadatas, ids = process_single_document(file_path)
 
     if not documents:
         return f"Errore nel processare il file '{file_name}'."
 
-    
     database.remove_document_by_source(file_name)
 
     database.add_documents(
@@ -140,23 +147,24 @@ async def _file_upload(file):
 
     os.makedirs(
         DOCUMENTS_DIR,
-        exist_ok=True
+        exist_ok=True,
     )
 
     destination = os.path.join(
         DOCUMENTS_DIR,
-        file_name
+        file_name,
     )
 
     shutil.copy2(
         file.path,
-        destination
+        destination,
     )
 
     return await _process_and_index_file(
         destination,
-        file_name
+        file_name,
     )
+
 
 @cl.on_message
 async def handle_message(message: cl.Message):
@@ -175,7 +183,8 @@ async def handle_message(message: cl.Message):
 
         if upload_results:
             await cl.Message(
-                content="\n".join(upload_results)
+                author="system_assistant",
+                content="\n".join(upload_results),
             ).send()
 
             return
@@ -184,10 +193,16 @@ async def handle_message(message: cl.Message):
 
     try:
         intent = classify_intent(user_question)
+
     except ValueError as error:
         await cl.Message(
-            content=f"Non riesco a classificare la richiesta: {str(error)}"
+            author="system_assistant",
+            content=(
+                "Non riesco a classificare la richiesta: "
+                f"{str(error)}"
+            ),
         ).send()
+
         return
 
     messages = cl.user_session.get("messages", [])
@@ -199,7 +214,7 @@ async def handle_message(message: cl.Message):
     if intent == "search_cv":
         results = database.query(
             user_question,
-            n_results=3
+            n_results=3,
         )
 
         if (
@@ -208,11 +223,13 @@ async def handle_message(message: cl.Message):
             or not results["documents"][0]
         ):
             await cl.Message(
+                author="system_assistant",
                 content=(
                     "Nessun curriculum trovato per la tua richiesta. "
                     "Prova a specificare meglio competenze o esperienza."
-                )
+                ),
             ).send()
+
             return
 
         filename = results["metadatas"][0][0]["source"]
@@ -231,7 +248,7 @@ async def handle_message(message: cl.Message):
 
         prompt = build_prompt(
             user_question=user_question,
-            context=context
+            context=context,
         )
 
         save_candidate_context = True
@@ -239,22 +256,24 @@ async def handle_message(message: cl.Message):
     elif intent == "info_cv":
         context = cl.user_session.get(
             "last_cv_context",
-            ""
+            "",
         )
 
         candidate_info = cl.user_session.get(
             "last_cv_header",
-            ""
+            "",
         )
 
         if not context:
             await cl.Message(
+                author="system_assistant",
                 content=(
                     "Non c'è ancora un candidato selezionato. "
                     "Cerca prima un profilo e poi chiedimi informazioni "
                     "specifiche su quel candidato."
-                )
+                ),
             ).send()
+
             return
 
         prompt = (
@@ -272,24 +291,30 @@ async def handle_message(message: cl.Message):
 
     else:
         await cl.Message(
-            content="Non ho capito la richiesta. Puoi riformularla?"
+            author="system_assistant",
+            content="Non ho capito la richiesta. Puoi riformularla?",
         ).send()
+
         return
 
     messages.append(
         {
             "role": "user",
-            "content": prompt
+            "content": prompt,
         }
     )
 
-    response_message = cl.Message(content="")
+    response_message = cl.Message(
+        author="hr_assistant",
+        content="",
+    )
+
     await response_message.send()
 
     try:
         stream = chat(
             messages=messages,
-            stream=True
+            stream=True,
         )
 
         for chunk in stream:
@@ -301,7 +326,7 @@ async def handle_message(message: cl.Message):
         messages.append(
             {
                 "role": "assistant",
-                "content": response_message.content
+                "content": response_message.content,
             }
         )
 
@@ -310,24 +335,26 @@ async def handle_message(message: cl.Message):
         if save_candidate_context:
             cl.user_session.set(
                 "last_cv_context",
-                context
+                context,
             )
 
             cl.user_session.set(
                 "last_cv_header",
-                candidate_info
+                candidate_info,
             )
 
     except Exception as error:
         error_message = (
-            f"Errore durante la generazione della risposta: {str(error)}"
+            "Errore durante la generazione della risposta: "
+            f"{str(error)}"
         )
 
         await cl.Message(
-            content=error_message
+            author="system_assistant",
+            content=error_message,
         ).send()
 
     cl.user_session.set(
         "messages",
-        messages
+        messages,
     )
